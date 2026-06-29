@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tic Tac Toe</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0f0f1a;
+    color: #e0e0ff;
+    font-family: 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  h1 {
+    font-size: 2.4rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #a78bfa;
+    text-shadow: 0 0 20px #7c3aed88;
+  }
+
+  #status {
+    font-size: 1.2rem;
+    letter-spacing: 2px;
+    color: #c4b5fd;
+    min-height: 1.5rem;
+    transition: color 0.3s;
+  }
+
+  #status.win  { color: #34d399; text-shadow: 0 0 12px #34d39988; }
+  #status.draw { color: #fbbf24; text-shadow: 0 0 12px #fbbf2488; }
+  #status.lose { color: #f87171; text-shadow: 0 0 12px #f8717188; }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(3, 110px);
+    grid-template-rows: repeat(3, 110px);
+    gap: 8px;
+  }
+
+  .cell {
+    background: #1e1b4b;
+    border: 2px solid #3730a3;
+    border-radius: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: bold;
+    transition: background 0.15s, transform 0.1s, box-shadow 0.2s;
+    user-select: none;
+  }
+
+  .cell:hover:not(.taken) {
+    background: #2e2a6e;
+    box-shadow: 0 0 16px #7c3aed55;
+    transform: scale(1.04);
+  }
+
+  .cell.x { color: #a78bfa; }
+  .cell.o { color: #34d399; }
+
+  .cell.winner {
+    background: #312e81;
+    box-shadow: 0 0 24px #7c3aedaa;
+    animation: pulse 0.6s ease infinite alternate;
+  }
+
+  @keyframes pulse {
+    from { box-shadow: 0 0 16px #7c3aed88; }
+    to   { box-shadow: 0 0 32px #a78bfacc; }
+  }
+
+  .cell.pop {
+    animation: pop 0.18s ease;
+  }
+
+  @keyframes pop {
+    0%   { transform: scale(0.7); }
+    70%  { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+
+  #controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  button {
+    background: #3730a3;
+    color: #e0e0ff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: 1rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+
+  button:hover {
+    background: #4338ca;
+    transform: scale(1.05);
+  }
+
+  button:active { transform: scale(0.97); }
+
+  #mute-btn {
+    background: #1e1b4b;
+    border: 2px solid #3730a3;
+    padding: 8px 14px;
+    font-size: 1.3rem;
+  }
+
+  #mute-btn:hover { background: #2e2a6e; }
+
+  #score {
+    display: flex;
+    gap: 32px;
+    font-size: 0.95rem;
+    letter-spacing: 1px;
+    color: #8b8bcc;
+  }
+
+  #score span { font-size: 1.4rem; font-weight: bold; }
+  .score-x span { color: #a78bfa; }
+  .score-o span { color: #34d399; }
+  .score-d span { color: #fbbf24; }
+</style>
+</head>
+<body>
+
+<h1>Tic Tac Toe</h1>
+
+<div id="score">
+  <div class="score-x">You (X) <span id="score-x">0</span></div>
+  <div class="score-d">Draws <span id="score-d">0</span></div>
+  <div class="score-o">CPU (O) <span id="score-o">0</span></div>
+</div>
+
+<div id="status">Your turn</div>
+
+<div id="board">
+  <div class="cell" data-i="0"></div>
+  <div class="cell" data-i="1"></div>
+  <div class="cell" data-i="2"></div>
+  <div class="cell" data-i="3"></div>
+  <div class="cell" data-i="4"></div>
+  <div class="cell" data-i="5"></div>
+  <div class="cell" data-i="6"></div>
+  <div class="cell" data-i="7"></div>
+  <div class="cell" data-i="8"></div>
+</div>
+
+<div id="controls">
+  <button id="restart-btn">New Game</button>
+  <button id="mute-btn">🔊</button>
+</div>
+
+<script>
+// ── Audio Engine ──────────────────────────────────────────────────────────────
+let ctx, gainNode, musicGain, muted = false, musicStarted = false;
+
+function initAudio() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  gainNode = ctx.createGain();
+  gainNode.gain.value = 0.18;
+  gainNode.connect(ctx.destination);
+  musicGain = ctx.createGain();
+  musicGain.gain.value = 0.35;
+  musicGain.connect(gainNode);
+  startMusic();
+  musicStarted = true;
+}
+
+function tone(freq, start, dur, type = 'square', vol = 1, target = gainNode) {
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, start);
+  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  o.connect(g); g.connect(target);
+  o.start(start); o.stop(start + dur + 0.02);
+}
+
+// Chiptune melody loop
+function startMusic() {
+  const notes = [
+    262, 330, 392, 330,  262, 294, 349, 294,
+    262, 330, 392, 523,  494, 440, 392, 330,
+    294, 349, 440, 349,  294, 330, 392, 330,
+    262, 294, 330, 294,  262, 247, 262, 0
+  ];
+  const bass = [
+    131, 0, 131, 0,  147, 0, 175, 0,
+    131, 0, 131, 0,  131, 0, 131, 0,
+    147, 0, 147, 0,  147, 0, 147, 0,
+    131, 0, 131, 0,  131, 0, 131, 0
+  ];
+
+  const bpm = 140;
+  const step = 60 / bpm / 2;
+  const loopDur = notes.length * step;
+
+  function scheduleLoop(startAt) {
+    notes.forEach((f, i) => {
+      if (f > 0) tone(f, startAt + i * step, step * 0.85, 'square', 0.5, musicGain);
+    });
+    bass.forEach((f, i) => {
+      if (f > 0) tone(f, startAt + i * step, step * 0.7, 'sawtooth', 0.3, musicGain);
+    });
+    // schedule next loop
+    setTimeout(() => scheduleLoop(ctx.currentTime + 0.05), (loopDur - 0.15) * 1000);
+  }
+
+  scheduleLoop(ctx.currentTime + 0.05);
+}
+
+function sfxPlace() {
+  if (!ctx || muted) return;
+  tone(440, ctx.currentTime, 0.07, 'square', 0.8);
+  tone(660, ctx.currentTime + 0.07, 0.07, 'square', 0.6);
+}
+
+function sfxWin() {
+  if (!ctx || muted) return;
+  const t = ctx.currentTime;
+  [523, 659, 784, 1047].forEach((f, i) => tone(f, t + i * 0.1, 0.15, 'square', 0.7));
+}
+
+function sfxLose() {
+  if (!ctx || muted) return;
+  const t = ctx.currentTime;
+  [400, 350, 300, 220].forEach((f, i) => tone(f, t + i * 0.1, 0.15, 'sawtooth', 0.6));
+}
+
+function sfxDraw() {
+  if (!ctx || muted) return;
+  const t = ctx.currentTime;
+  [330, 294, 262].forEach((f, i) => tone(f, t + i * 0.12, 0.15, 'triangle', 0.6));
+}
+
+document.getElementById('mute-btn').addEventListener('click', () => {
+  muted = !muted;
+  document.getElementById('mute-btn').textContent = muted ? '🔇' : '🔊';
+  if (gainNode) gainNode.gain.value = muted ? 0 : 0.18;
+});
+
+// ── Game Logic ────────────────────────────────────────────────────────────────
+const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+let board, gameOver, scores = {x:0,o:0,d:0};
+
+function checkWinner(b) {
+  for (const [a,bb,c] of WINS)
+    if (b[a] && b[a] === b[bb] && b[a] === b[c]) return { winner: b[a], line: [a,bb,c] };
+  if (b.every(Boolean)) return { winner: 'draw' };
+  return null;
+}
+
+function minimax(b, isMax) {
+  const res = checkWinner(b);
+  if (res) {
+    if (res.winner === 'o') return 10;
+    if (res.winner === 'x') return -10;
+    return 0;
+  }
+  const scores = [];
+  for (let i = 0; i < 9; i++) {
+    if (!b[i]) {
+      b[i] = isMax ? 'o' : 'x';
+      scores.push(minimax(b, !isMax));
+      b[i] = null;
+    }
+  }
+  return isMax ? Math.max(...scores) : Math.min(...scores);
+}
+
+function bestMove(b) {
+  let best = -Infinity, move = -1;
+  for (let i = 0; i < 9; i++) {
+    if (!b[i]) {
+      b[i] = 'o';
+      const s = minimax(b, false);
+      b[i] = null;
+      if (s > best) { best = s; move = i; }
+    }
+  }
+  return move;
+}
+
+function renderBoard() {
+  document.querySelectorAll('.cell').forEach((el, i) => {
+    el.textContent = board[i] ? (board[i] === 'x' ? 'X' : 'O') : '';
+    el.className = 'cell' + (board[i] ? ` ${board[i]} taken` : '');
+  });
+}
+
+function setStatus(msg, cls = '') {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = cls;
+}
+
+function updateScores() {
+  document.getElementById('score-x').textContent = scores.x;
+  document.getElementById('score-o').textContent = scores.o;
+  document.getElementById('score-d').textContent = scores.d;
+}
+
+function endGame(result) {
+  gameOver = true;
+  if (result.winner === 'draw') {
+    scores.d++;
+    setStatus("It's a draw!", 'draw');
+    sfxDraw();
+  } else if (result.winner === 'x') {
+    scores.x++;
+    setStatus('You win! 🎉', 'win');
+    sfxWin();
+    result.line.forEach(i => document.querySelectorAll('.cell')[i].classList.add('winner'));
+  } else {
+    scores.o++;
+    setStatus('CPU wins!', 'lose');
+    sfxLose();
+    result.line.forEach(i => document.querySelectorAll('.cell')[i].classList.add('winner'));
+  }
+  updateScores();
+}
+
+function cpuMove() {
+  if (gameOver) return;
+  const move = bestMove(board);
+  if (move === -1) return;
+  board[move] = 'o';
+  renderBoard();
+  const cell = document.querySelectorAll('.cell')[move];
+  cell.classList.add('pop');
+  cell.addEventListener('animationend', () => cell.classList.remove('pop'), { once: true });
+  sfxPlace();
+  const res = checkWinner(board);
+  if (res) { endGame(res); return; }
+  setStatus('Your turn');
+}
+
+function newGame() {
+  board = Array(9).fill(null);
+  gameOver = false;
+  renderBoard();
+  setStatus('Your turn');
+}
+
+document.getElementById('board').addEventListener('click', e => {
+  const cell = e.target.closest('.cell');
+  if (!cell || gameOver) return;
+  initAudio();
+  const i = +cell.dataset.i;
+  if (board[i]) return;
+  board[i] = 'x';
+  renderBoard();
+  cell.classList.add('pop');
+  cell.addEventListener('animationend', () => cell.classList.remove('pop'), { once: true });
+  sfxPlace();
+  const res = checkWinner(board);
+  if (res) { endGame(res); return; }
+  setStatus('CPU thinking…');
+  setTimeout(cpuMove, 320);
+});
+
+document.getElementById('restart-btn').addEventListener('click', () => {
+  initAudio();
+  newGame();
+});
+
+newGame();
+</script>
+</body>
+</html>
