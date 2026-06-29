@@ -35,5 +35,8 @@ Both games follow the same pattern:
 
 ## Git workflow
 
-Remote: `https://github.com/mrana2-ai/tech-with-tim-games` (branch `main`).  
-Commit and push after every meaningful change. Use descriptive commit messages — what changed and why, not just what file.
+Remote: `https://github.com/mrana2-ai/tech-with-tim-games` (branch `main`).
+
+**Commit and push after every meaningful unit of work** — a feature added, a bug fixed, a file created. Do not batch multiple unrelated changes into one commit. The goal is that the GitHub history always reflects a working, recoverable state of the project.
+
+Commit message format: short imperative subject line describing *what and why*, not just which file changed. Push to `origin main` immediately after every commit — never leave commits sitting only in the local repo.
